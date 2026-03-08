@@ -1,0 +1,244 @@
+#!/usr/bin/env python3
+"""Trace resolver: validate and export ULP bindings from lattice traces."""
+
+import argparse
+import hashlib
+import json
+import sys
+from pathlib import Path
+from typing import Any, Dict, List
+
+RUNTIME_DIR = Path(__file__).resolve().parent / "runtime"
+if RUNTIME_DIR.exists():
+    sys.path.insert(0, str(RUNTIME_DIR))
+try:
+    from board import read_board  # type: ignore
+    from trace import compute_board_hash as compute_runtime_board_hash  # type: ignore
+except Exception:
+    read_board = None
+    compute_runtime_board_hash = None
+
+
+def compute_board_hash(board_dict: Dict[str, Any]) -> str:
+    """Compute content-addressable hash of board."""
+    canonical = json.dumps(board_dict, sort_keys=True)
+    return hashlib.sha256(canonical.encode()).hexdigest()
+
+
+def validate_ulp_binding(ulp: Dict[str, Any]) -> bool:
+    """Validate ULP binding structure."""
+    required_fields = ["version", "procedure", "interrupt", "result", "atoms", "hash"]
+    
+    for field in required_fields:
+        if field not in ulp:
+            print(f"Error: ULP binding missing field: {field}", file=sys.stderr)
+            return False
+    
+    if ulp["version"] != "ulp-calculus-1.0":
+        print(f"Error: Unknown ULP version: {ulp['version']}", file=sys.stderr)
+        return False
+    
+    # Verify polynomial
+    atoms_in_result = parse_polynomial(ulp["result"])
+    if set(atoms_in_result) != set(ulp["atoms"]):
+        print(f"Error: Atom mismatch in polynomial", file=sys.stderr)
+        return False
+    
+    return True
+
+
+def parse_polynomial(poly_str: str) -> List[str]:
+    """Extract atoms from polynomial string.
+    
+    Example: "+1*runtime +1*event_probe" -> ["runtime", "event_probe"]
+    """
+    atoms = []
+    for term in poly_str.split():
+        if "*" in term:
+            _, atom = term.split("*", 1)
+            atoms.append(atom)
+    return atoms
+
+
+def resolve_traces(trace_file: Path, board_dir: Path = None, export_ulp: Path = None,
+                   export_coxeter: Path = None, verbose: bool = False):
+    """Resolve trace log and optionally export ULP/Coxeter representations."""
+    
+    if not trace_file.exists():
+        print(f"Error: Trace file not found: {trace_file}", file=sys.stderr)
+        sys.exit(1)
+    
+    # Read board if provided
+    board_hash = None
+    if board_dir:
+        if not board_dir.exists():
+            print(f"Error: Board directory not found: {board_dir}", file=sys.stderr)
+            sys.exit(1)
+        
+        if read_board and compute_runtime_board_hash:
+            board = read_board(str(board_dir))
+            board_hash = compute_runtime_board_hash(board)
+        else:
+            board_file = board_dir / "board.json"
+            if not board_file.exists():
+                print(f"Error: board.json not found in {board_dir}", file=sys.stderr)
+                sys.exit(1)
+            with open(board_file) as f:
+                board = json.load(f)
+            board_hash = compute_board_hash(board)
+        print(f"Board hash: {board_hash[:16]}...")
+    
+    # Parse trace log
+    events = []
+    event_counts = {}
+    mismatched_boards = []
+    
+    with open(trace_file) as f:
+        for line_num, line in enumerate(f, 1):
+            try:
+                event = json.loads(line)
+                events.append(event)
+                
+                # Count event types
+                event_type = event.get("type", "unknown")
+                event_counts[event_type] = event_counts.get(event_type, 0) + 1
+                
+                # Check board hash mismatch
+                if board_hash and event.get("board_hash") != board_hash:
+                    mismatched_boards.append((line_num, event.get("id", "unknown")))
+                
+                # Validate ULP binding
+                if "ulp" in event:
+                    if not validate_ulp_binding(event["ulp"]):
+                        print(f"Warning: Invalid ULP binding at line {line_num}", file=sys.stderr)
+                
+            except json.JSONDecodeError as e:
+                print(f"Error parsing line {line_num}: {e}", file=sys.stderr)
+                continue
+    
+    # Report summary
+    print(f"\nResolved {len(events)} events:")
+    for event_type, count in sorted(event_counts.items()):
+        print(f"  - {count:4d} {event_type}")
+    
+    if mismatched_boards:
+        print(f"\nWarning: {len(mismatched_boards)} events from different board versions")
+        if verbose:
+            for line_num, event_id in mismatched_boards[:5]:
+                print(f"  Line {line_num}: {event_id[:16]}...")
+    
+    # Export ULP if requested
+    if export_ulp:
+        export_ulp.parent.mkdir(parents=True, exist_ok=True)
+        with open(export_ulp, 'w') as f:
+            for event in events:
+                if "ulp" in event:
+                    f.write(json.dumps(event["ulp"]) + "\n")
+        print(f"\nExported {len(events)} ULP bindings to {export_ulp}")
+    
+    # Export Coxeter if requested
+    if export_coxeter:
+        export_coxeter.parent.mkdir(parents=True, exist_ok=True)
+        coxeter_data = extract_coxeter_structure(events)
+        with open(export_coxeter, 'w') as f:
+            json.dump(coxeter_data, f, indent=2)
+        print(f"\nExported Coxeter structure to {export_coxeter}")
+    
+    # Verbose analysis
+    if verbose:
+        print("\n=== Trace Analysis ===")
+        analyze_traces(events)
+
+
+def extract_coxeter_structure(events: List[Dict[str, Any]]) -> Dict[str, Any]:
+    """Extract Coxeter chain complex from trace events."""
+    
+    # Extract all resources (0-cells)
+    atoms = set()
+    edges = []
+    
+    for event in events:
+        ulp = event.get("ulp", {})
+        atoms.update(ulp.get("atoms", []))
+        
+        # Extract edges from reconcile events
+        if event.get("type") == "reconcile":
+            payload = event.get("payload", {})
+            if "resource" in payload:
+                resource = payload["resource"]
+                # Edge from resource to action
+                edges.append({
+                    "from": f"resource_{resource}",
+                    "to": payload.get("action", "unknown")
+                })
+    
+    return {
+        "version": "coxeter-lattice-1.0",
+        "atoms": sorted(list(atoms)),
+        "0-cells": len(atoms),
+        "1-cells": len(edges),
+        "edges": edges
+    }
+
+
+def analyze_traces(events: List[Dict[str, Any]]):
+    """Perform detailed trace analysis."""
+    
+    # Compute trace statistics
+    compile_count = sum(1 for e in events if e.get("type") == "compile")
+    reconcile_count = sum(1 for e in events if e.get("type") == "reconcile")
+    probe_count = sum(1 for e in events if e.get("type") == "probe")
+    heal_count = sum(1 for e in events if e.get("type") == "heal")
+    
+    # Health status distribution
+    healthy_count = 0
+    unhealthy_count = 0
+    unknown_count = 0
+    
+    for event in events:
+        if event.get("type") == "probe":
+            status = event.get("payload", {}).get("status", "unknown")
+            if status == "healthy":
+                healthy_count += 1
+            elif status == "unhealthy":
+                unhealthy_count += 1
+            else:
+                unknown_count += 1
+    
+    print(f"Compile events: {compile_count}")
+    print(f"Reconcile events: {reconcile_count}")
+    print(f"Probe events: {probe_count}")
+    print(f"  - Healthy: {healthy_count}")
+    print(f"  - Unhealthy: {unhealthy_count}")
+    print(f"  - Unknown: {unknown_count}")
+    print(f"Heal events: {heal_count}")
+    
+    # Compute heal effectiveness (heals / unhealthy probes)
+    if unhealthy_count > 0:
+        heal_rate = (heal_count / unhealthy_count) * 100
+        print(f"Heal rate: {heal_rate:.1f}%")
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="Resolve lattice trace logs and export ULP bindings"
+    )
+    parser.add_argument("trace_file", type=Path, help="Trace log file (trace.log)")
+    parser.add_argument("--board", type=Path, help="Board directory for validation")
+    parser.add_argument("--export-ulp", type=Path, help="Export ULP bindings to file")
+    parser.add_argument("--export-coxeter", type=Path, help="Export Coxeter structure to JSON")
+    parser.add_argument("-v", "--verbose", action="store_true", help="Verbose output")
+    
+    args = parser.parse_args()
+    
+    resolve_traces(
+        args.trace_file,
+        board_dir=args.board,
+        export_ulp=args.export_ulp,
+        export_coxeter=args.export_coxeter,
+        verbose=args.verbose
+    )
+
+
+if __name__ == "__main__":
+    main()

@@ -1,0 +1,55 @@
+[
+  {
+    "name": "tcp_echo",
+    "type": "tcp",
+    "host": "127.0.0.1",
+    "port": 9997,
+    "probe": {
+      "type": "tcp",
+      "host": "127.0.0.1",
+      "port": 9997
+    }
+  },
+  {
+    "name": "udp_echo",
+    "type": "udp",
+    "host": "127.0.0.1",
+    "port": 9996,
+    "probe": {
+      "type": "udp",
+      "host": "127.0.0.1",
+      "port": 9996
+    }
+  },
+  {
+    "name": "udp_echo_rt",
+    "type": "udp",
+    "host": "127.0.0.1",
+    "port": 9994,
+    "probe": {
+      "type": "udp",
+      "host": "127.0.0.1",
+      "port": 9994
+    }
+  },
+  {
+    "name": "ssl_echo",
+    "type": "ssl",
+    "host": "127.0.0.1",
+    "port": 9995,
+    "probe": {
+      "type": "ssl",
+      "host": "127.0.0.1",
+      "port": 9995
+    }
+  },
+  {
+    "name": "unix_echo",
+    "type": "unix",
+    "path": "/tmp/lattice-netcat-demo.sock",
+    "probe": {
+      "type": "unix",
+      "path": "/tmp/lattice-netcat-demo.sock"
+    }
+  }
+]

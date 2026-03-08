@@ -1,0 +1,78 @@
+{
+  "node_id": "protocol-matrix",
+  "socket_dir": "state/sockets",
+  "kernel": {
+    "enabled": false,
+    "command": ["lattice-kernel", "analyze"],
+    "policy": "policy.json"
+  },
+  "ports": [
+    {"name": "tcp_in", "direction": "in"},
+    {"name": "udp_in", "direction": "in"},
+    {"name": "ssl_in", "direction": "in"}
+  ],
+  "transports": [
+    {
+      "name": "tcp-listen",
+      "kind": "netcat",
+      "attach": "tcp_in",
+      "spec": {
+        "protocol": "tcp",
+        "mode": "listen",
+        "port": 9101,
+        "keep_open": true
+      }
+    },
+    {
+      "name": "udp-listen",
+      "kind": "netcat",
+      "attach": "udp_in",
+      "spec": {
+        "protocol": "udp",
+        "mode": "listen",
+        "port": 9102
+      }
+    },
+    {
+      "name": "ssl-listen",
+      "kind": "netcat",
+      "attach": "ssl_in",
+      "spec": {
+        "protocol": "ssl",
+        "mode": "listen",
+        "port": 9103,
+        "keep_open": true,
+        "health": {
+          "mode": "ephemeral",
+          "success_condition": "at_least_one_accept",
+          "window_sec": 10,
+          "heal": "restart_on_demand"
+        }
+      }
+    }
+  ],
+  "procs": [
+    {
+      "name": "tcp-sink",
+      "command": "sh -c 'out_dir=$(dirname $LATTICE_PORT_TCP_IN)/../received; mkdir -p $out_dir; while cat $LATTICE_PORT_TCP_IN >> $out_dir/tcp.out; do :; done'",
+      "waits": ["tcp_in"],
+      "fires": []
+    },
+    {
+      "name": "udp-sink",
+      "command": "sh -c 'out_dir=$(dirname $LATTICE_PORT_UDP_IN)/../received; mkdir -p $out_dir; while cat $LATTICE_PORT_UDP_IN >> $out_dir/udp.out; do :; done'",
+      "waits": ["udp_in"],
+      "fires": []
+    },
+    {
+      "name": "ssl-sink",
+      "command": "sh -c 'out_dir=$(dirname $LATTICE_PORT_SSL_IN)/../received; mkdir -p $out_dir; while cat $LATTICE_PORT_SSL_IN >> $out_dir/ssl.out; do :; done'",
+      "waits": ["ssl_in"],
+      "fires": []
+    }
+  ],
+  "health": {
+    "tick_seconds": 2,
+    "restart_delay": 1
+  }
+}

@@ -1,0 +1,8 @@
+{
+  "node_id": "local-node",
+  "socket_dir": "state/sockets",
+  "health": {
+    "tick_seconds": 2,
+    "restart_delay": 1
+  }
+}

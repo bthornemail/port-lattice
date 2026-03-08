@@ -1,0 +1,12 @@
+manifest default
+atoms:
+  - scope
+  - order
+  - bind
+constraints:
+  - degree <= 5
+  - coefficient scope = 1
+  - no atom unknown
+composition-rules:
+  - bind o order != order o bind
+  - scope o scope = scope

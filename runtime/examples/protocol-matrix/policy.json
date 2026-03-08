@@ -1,0 +1,5 @@
+{
+  "max_components": 1,
+  "max_radius": 10,
+  "allow_affine": false
+}

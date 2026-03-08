@@ -1,0 +1,9 @@
+{
+  "updated_at": 1772865876.291299,
+  "resources": {
+    "input": "healthy",
+    "output": "healthy",
+    "echo-worker": "healthy"
+  },
+  "details": {}
+}

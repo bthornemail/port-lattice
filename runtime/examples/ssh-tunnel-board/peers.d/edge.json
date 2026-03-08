@@ -1,0 +1,11 @@
+{
+  "name": "edge-server",
+  "host": "edge.example.com",
+  "ssh_user": "lattice",
+  "ssh_port": 22,
+  "ssh_key": "/home/lattice/.ssh/id_ed25519",
+  "options": [
+    "StrictHostKeyChecking=no",
+    "ServerAliveInterval=60"
+  ]
+}

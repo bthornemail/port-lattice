@@ -1,0 +1,127 @@
+." lattice-netcat(1) - POSIX-oriented netcat for lattice runtime
+."
+.Dd January 25, 2026
+.Dt LATTICE-NETCAT 1
+.Os "Lattice Runtime"
+.Sh NAME
+.Nm lattice-netcat
+.Nd POSIX-oriented netcat implementation for lattice runtime
+.Sh SYNOPSIS
+.Nm
+.Op Fl l
+.Op Fl uU S
+.Op Fl k
+.Op Fl v
+.Op Fl p Ar port
+.Op Fl H Ar host
+.Op Fl L Ar socket
+.Op Fl t Ar seconds
+.Op Fl w Ar seconds
+.Op Fl e Ar command
+.Op Fl o Ar file
+.Op Fl i Ar file
+.Op Fl N
+.Op Fl -fifo Ns = Ns Ar file
+.Op Fl -pid-file Ns = Ns Ar file
+.Op Fl -lattice-log Ns = Ns Ar file
+.Op Ar host
+.Op Ar port
+.Sh DESCRIPTION
+.Nm
+is a POSIX-oriented netcat implementation designed for lattice runtime
+transport creation. It prefers system tools such as
+.Xr nc 1 ,
+.Xr socat 1 ,
+and
+.Xr openssl 1 ,
+falling back to portable methods where possible.
+.Pp
+It supports TCP, UDP, Unix sockets, SSL/TLS, FIFO integration, and
+zero-I/O scanning.
+.Sh OPTIONS
+.Bl -tag -width Ds
+.It Fl l , Fl -listen
+Listen for incoming connections.
+.It Fl u , Fl -udp
+Use UDP instead of TCP.
+.It Fl U , Fl -unix
+Use Unix domain socket mode.
+.It Fl S , Fl -ssl
+Enable SSL/TLS mode.
+.It Fl L Ar socket , Fl -local-socket Ns = Ns Ar socket
+Unix socket path (with
+.Fl U ) .
+.It Fl k , Fl -keep-open
+Keep listening after client disconnects.
+.It Fl v , Fl -verbose
+Verbose output.
+.It Fl p Ar port , Fl -port Ns = Ns Ar port
+Port to connect or listen on.
+.It Fl H Ar host , Fl -host Ns = Ns Ar host
+Host to connect to (client mode).
+.It Fl t Ar seconds , Fl -timeout Ns = Ns Ar seconds
+Connection timeout (default: 30).
+.It Fl w Ar seconds , Fl -wait Ns = Ns Ar seconds
+Wait time for connection in scan mode.
+.It Fl -udp-wait Ns = Ns Ar seconds
+Wait for a UDP reply in client mode.
+.It Fl z , Fl -zero
+Zero-I/O scan mode.
+.It Fl e Ar command , Fl -exec Ns = Ns Ar command
+Execute a command when connected (requires socat for server mode).
+.It Fl c Ar command , Fl -command Ns = Ns Ar command
+Alias for
+.Fl e .
+.It Fl o Ar file , Fl -output Ns = Ns Ar file
+Write output to file.
+.It Fl i Ar file , Fl -input Ns = Ns Ar file
+Read input from file.
+.It Fl N , Fl -no-shutdown
+Do not shutdown socket on EOF.
+.It Fl -fifo Ns = Ns Ar file
+Use a FIFO for I/O.
+.It Fl -pid-file Ns = Ns Ar file
+Write PID to file.
+.It Fl -lattice-log Ns = Ns Ar file
+Log file for lattice runtime.
+.El
+.Sh ENVIRONMENT
+.Bl -tag -width Ds
+.It Ev LATTICE_NETCAT_DEBUG
+Enable shell tracing.
+.It Ev LATTICE_SSL_CERT
+SSL certificate file.
+.It Ev LATTICE_SSL_KEY
+SSL private key file.
+.It Ev LATTICE_SSL_CA
+SSL CA certificate file.
+.El
+.Sh EXAMPLES
+.Bd -literal -offset indent
+# TCP client
+lattice-netcat example.com 80
+
+# TCP server
+lattice-netcat -l -p 8080
+
+# UDP client
+lattice-netcat -u example.com 53
+
+# Unix socket server
+lattice-netcat -U -l -L /tmp/test.sock
+
+# SSL client
+lattice-netcat -S example.com 443
+
+# FIFO mode
+lattice-netcat --fifo=/tmp/pipe.fifo
+.Ed
+.Sh EXIT STATUS
+.Ex -std
+.Sh SEE ALSO
+.Xr nc 1 ,
+.Xr socat 1 ,
+.Xr openssl 1 ,
+.Xr mkfifo 1
+.Sh AUTHORS
+.An "Lattice Runtime Team"

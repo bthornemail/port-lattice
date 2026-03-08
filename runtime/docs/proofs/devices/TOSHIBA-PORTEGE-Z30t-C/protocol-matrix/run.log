@@ -1,0 +1,39 @@
+[lattice] Starting runtime for board: /home/main/github/lattice-runtime/examples/protocol-matrix
+[lattice] Board loaded: 0 peers, 3 ports, 3 transports, 3 processes
+
+[lattice] === Tick 1 ===
+[reconcile] Converging to new lattice definition
+[reconcile] Creating FIFO: tcp_in.in at /home/main/github/lattice-runtime/examples/protocol-matrix/state/sockets/tcp_in.fifo
+[reconcile] Creating FIFO: udp_in.in at /home/main/github/lattice-runtime/examples/protocol-matrix/state/sockets/udp_in.fifo
+[reconcile] Creating FIFO: ssl_in.in at /home/main/github/lattice-runtime/examples/protocol-matrix/state/sockets/ssl_in.fifo
+[reconcile] Starting process: tcp-sink
+[reconcile] Process started: tcp-sink (PID 380458)
+[reconcile] Starting process: udp-sink
+[reconcile] Process started: udp-sink (PID 380461)
+[reconcile] Starting process: ssl-sink
+[reconcile] Process started: ssl-sink (PID 380465)
+[health] Checking all resources
+[health] Status: 6 healthy, 0 unhealthy, 3 warming, 0 unknown
+
+[lattice] === Tick 2 ===
+[reconcile] Converging to new lattice definition
+[health] Checking all resources
+[health] Status: 9 healthy, 0 unhealthy, 0 warming, 0 unknown
+
+[lattice] === Tick 3 ===
+[reconcile] Converging to new lattice definition
+[health] Checking all resources
+[health] Status: 9 healthy, 0 unhealthy, 0 warming, 0 unknown
+
+[lattice] Received signal 15, shutting down...
+[lattice] Shutting down...
+[lattice] Stopping process: tcp-sink
+[lattice] Stopping process: udp-sink
+[lattice] Stopping process: ssl-sink
+[lattice] Closing transport: tcp_in.in
+[lattice] Closing transport: udp_in.in
+[lattice] Closing transport: ssl_in.in
+[lattice] Closing transport: tcp-listen
+[lattice] Closing transport: udp-listen
+[lattice] Closing transport: ssl-listen
+[lattice] Shutdown complete

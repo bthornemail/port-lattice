@@ -1,0 +1,51 @@
+#!/usr/bin/env python3
+"""Self-defining, self-healing lattice runtime."""
+
+import argparse
+import os
+import sys
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "runtime"))
+
+from board import read_board, validate, run  # noqa: E402
+from trace_resolve import resolve as resolve_trace  # noqa: E402
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description="Lattice Runtime")
+    subparsers = parser.add_subparsers(dest="command", help="Command")
+
+    run_parser = subparsers.add_parser("run", help="Run lattice from board")
+    run_parser.add_argument("board", help="Board directory")
+    run_parser.add_argument("--once", action="store_true", help="Run one tick")
+
+    validate_parser = subparsers.add_parser("validate", help="Validate board")
+    validate_parser.add_argument("board", help="Board directory")
+
+    trace_parser = subparsers.add_parser("trace-resolve", help="Resolve trace log")
+    trace_parser.add_argument("trace", help="Path to trace.log")
+    trace_parser.add_argument("--board", help="Board directory")
+    trace_parser.add_argument("--export-ulp", help="Write ULP bindings as JSONL")
+
+    args = parser.parse_args()
+
+    if args.command == "run":
+        run(os.path.abspath(args.board), once=args.once)
+    elif args.command == "validate":
+        board = read_board(os.path.abspath(args.board))
+        errors = validate(board)
+        if errors:
+            for err in errors:
+                print(f"Validation error: {err}")
+            sys.exit(1)
+        print("Board is valid")
+    elif args.command == "trace-resolve":
+        code = resolve_trace(os.path.abspath(args.trace), args.board, args.export_ulp)
+        sys.exit(code)
+    else:
+        parser.print_help()
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()

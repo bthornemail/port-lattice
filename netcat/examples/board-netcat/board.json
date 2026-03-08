@@ -1,0 +1,6 @@
+{
+  "node_id": "netcat-demo",
+  "socket_dir": "state/sockets",
+  "ports": [],
+  "procs": []
+}

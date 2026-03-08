@@ -1,0 +1,607 @@
+#!/bin/sh
+# lattice-netcat - POSIX-oriented netcat for lattice runtime
+# Uses external tools if available, otherwise falls back to portable methods.
+
+VERSION="1.0.0"
+DEFAULT_TIMEOUT=30
+
+log_info() { printf "[INFO] %s\n" "$*" >&2; }
+log_warn() { printf "[WARN] %s\n" "$*" >&2; }
+log_error() { printf "[ERROR] %s\n" "$*" >&2; }
+log_success() { printf "[OK] %s\n" "$*" >&2; }
+
+cleanup() {
+    trap - EXIT INT TERM
+    [ -n "$_PID" ] && kill "$_PID" 2>/dev/null
+    [ -n "$_SERVER_PID" ] && kill "$_SERVER_PID" 2>/dev/null
+    [ -n "$_SSL_PID" ] && kill "$_SSL_PID" 2>/dev/null
+    [ -n "$_SOCKET" ] && rm -f "$_SOCKET"
+    exit 0
+}
+
+trap cleanup EXIT INT TERM
+
+show_help() {
+    cat << EOF
+lattice-netcat v${VERSION} - POSIX netcat for lattice runtime
+
+Usage: lattice-netcat [OPTIONS] [host] [port]
+
+Modes:
+  -l, --listen              Listen mode (server)
+  -u, --udp                 UDP mode
+  -U, --unix                Unix domain socket
+  -S, --ssl                 SSL/TLS (requires openssl)
+  -L, --local-socket=PATH   Unix socket path (with -U)
+  -k, --keep-open           Keep listening after disconnects
+  -v, --verbose             Verbose output
+
+Connection:
+  -p, --port=PORT           Port to connect/listen on
+  -H, --host=HOST           Host to connect to
+  -t, --timeout=SECONDS     Connection timeout (default: ${DEFAULT_TIMEOUT})
+  -w, --wait=SECONDS        Wait time for connection
+  -z, --zero                Zero-I/O mode (scanning)
+
+Data handling:
+  -e, --exec=COMMAND        Execute command after connection
+  -c, --command=COMMAND     Alias for -e
+  -o, --output=FILE         Output to file instead of stdout
+  -i, --input=FILE          Input from file instead of stdin
+  -N, --no-shutdown         Don't shutdown socket on EOF
+
+Lattice-specific:
+  --fifo=FILE               Use named pipe (FIFO) for I/O
+  --pid-file=FILE           Write PID to file
+  --lattice-log=FILE        Log file for lattice runtime
+  --udp-wait=SECONDS        Wait for UDP reply (client mode)
+
+Environment:
+  LATTICE_NETCAT_DEBUG=1    Enable debug output
+  LATTICE_SSL_CERT=FILE     SSL certificate file
+  LATTICE_SSL_KEY=FILE      SSL private key file
+  LATTICE_SSL_CA=FILE       SSL CA certificate file
+EOF
+}
+
+parse_args() {
+    MODE="tcp"
+    LISTEN=0
+    UDP=0
+    UNIX=0
+    SSL=0
+    KEEP_OPEN=0
+    VERBOSE=0
+    TIMEOUT=$DEFAULT_TIMEOUT
+    WAIT_TIME=0
+    UDP_WAIT=0
+    ZERO_MODE=0
+    NO_SHUTDOWN=0
+    PORT=""
+    HOST=""
+    UNIX_SOCKET=""
+    EXEC_COMMAND=""
+    OUTPUT_FILE=""
+    INPUT_FILE=""
+    FIFO=""
+    PID_FILE=""
+    LOG_FILE=""
+
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            --help)
+                show_help
+                exit 0
+                ;;
+            -l|--listen)
+                LISTEN=1
+                shift
+                ;;
+            -u|--udp)
+                UDP=1
+                MODE="udp"
+                shift
+                ;;
+            -U|--unix)
+                UNIX=1
+                MODE="unix"
+                shift
+                ;;
+            -S|--ssl)
+                SSL=1
+                MODE="ssl"
+                shift
+                ;;
+            -L|--local-socket)
+                UNIX_SOCKET="$2"
+                shift 2
+                ;;
+            --local-socket=*)
+                UNIX_SOCKET="${1#*=}"
+                shift
+                ;;
+            -k|--keep-open)
+                KEEP_OPEN=1
+                shift
+                ;;
+            -v|--verbose)
+                VERBOSE=1
+                shift
+                ;;
+            -p|--port)
+                PORT="$2"
+                shift 2
+                ;;
+            --port=*)
+                PORT="${1#*=}"
+                shift
+                ;;
+            -H|--host)
+                HOST="$2"
+                shift 2
+                ;;
+            --host=*)
+                HOST="${1#*=}"
+                shift
+                ;;
+            -t|--timeout)
+                TIMEOUT="$2"
+                shift 2
+                ;;
+            --timeout=*)
+                TIMEOUT="${1#*=}"
+                shift
+                ;;
+            -w|--wait)
+                WAIT_TIME="$2"
+                shift 2
+                ;;
+            --wait=*)
+                WAIT_TIME="${1#*=}"
+                shift
+                ;;
+            --udp-wait)
+                UDP_WAIT="$2"
+                shift 2
+                ;;
+            --udp-wait=*)
+                UDP_WAIT="${1#*=}"
+                shift
+                ;;
+            -z|--zero)
+                ZERO_MODE=1
+                shift
+                ;;
+            -e|--exec|-c|--command)
+                EXEC_COMMAND="$2"
+                shift 2
+                ;;
+            --exec=*|--command=*)
+                EXEC_COMMAND="${1#*=}"
+                shift
+                ;;
+            -o|--output)
+                OUTPUT_FILE="$2"
+                shift 2
+                ;;
+            --output=*)
+                OUTPUT_FILE="${1#*=}"
+                shift
+                ;;
+            -i|--input)
+                INPUT_FILE="$2"
+                shift 2
+                ;;
+            --input=*)
+                INPUT_FILE="${1#*=}"
+                shift
+                ;;
+            -N|--no-shutdown)
+                NO_SHUTDOWN=1
+                shift
+                ;;
+            --fifo)
+                FIFO="$2"
+                shift 2
+                ;;
+            --fifo=*)
+                FIFO="${1#*=}"
+                shift
+                ;;
+            --pid-file)
+                PID_FILE="$2"
+                shift 2
+                ;;
+            --pid-file=*)
+                PID_FILE="${1#*=}"
+                shift
+                ;;
+            --lattice-log)
+                LOG_FILE="$2"
+                shift 2
+                ;;
+            --lattice-log=*)
+                LOG_FILE="${1#*=}"
+                shift
+                ;;
+            -* )
+                log_error "Unknown option: $1"
+                show_help
+                exit 1
+                ;;
+            *)
+                if [ -z "$HOST" ]; then
+                    HOST="$1"
+                elif [ -z "$PORT" ]; then
+                    PORT="$1"
+                else
+                    log_error "Too many arguments"
+                    show_help
+                    exit 1
+                fi
+                shift
+                ;;
+        esac
+    done
+
+    # FIFO mode is standalone; it doesn't require host/port or listen/client semantics.
+    if [ -n "$FIFO" ]; then
+        return 0
+    fi
+
+    if [ "$LISTEN" -eq 0 ] && [ -z "$HOST" ]; then
+        log_error "Host required in client mode"
+        exit 1
+    fi
+
+    if [ -z "$PORT" ] && [ "$UNIX" -eq 0 ]; then
+        log_error "Port required for TCP/UDP"
+        exit 1
+    fi
+
+    if [ "$UNIX" -eq 1 ] && [ -z "$UNIX_SOCKET" ] && [ "$LISTEN" -eq 1 ]; then
+        log_error "Unix socket path required with -U -l"
+        exit 1
+    fi
+
+    if [ "$SSL" -eq 1 ] && ! command -v openssl >/dev/null 2>&1; then
+        log_error "SSL mode requires openssl"
+        exit 1
+    fi
+}
+
+create_tcp_socket() {
+    host="$1"
+    port="$2"
+    listen="$3"
+
+    if [ "$listen" -eq 1 ]; then
+        log_info "Starting TCP server on port $port"
+        if command -v nc >/dev/null 2>&1; then
+            if [ "$KEEP_OPEN" -eq 1 ]; then
+                nc -l -k -p "$port"
+            else
+                nc -l -p "$port"
+            fi
+        elif command -v socat >/dev/null 2>&1; then
+            if [ "$KEEP_OPEN" -eq 1 ]; then
+                socat TCP-LISTEN:"$port",fork,reuseaddr STDIO
+            else
+                socat TCP-LISTEN:"$port",reuseaddr STDIO
+            fi
+        else
+            log_error "No TCP socket method available"
+            exit 1
+        fi
+    else
+        log_info "Connecting to $host:$port"
+        if command -v nc >/dev/null 2>&1; then
+            nc "$host" "$port"
+        elif command -v socat >/dev/null 2>&1; then
+            socat TCP:"$host:$port" STDIO
+        elif command -v bash >/dev/null 2>&1; then
+            bash -c "exec 3<>/dev/tcp/$host/$port; cat <&3 & cat >&3"
+        else
+            log_error "No TCP connection method available"
+            exit 1
+        fi
+    fi
+}
+
+create_udp_socket() {
+    host="$1"
+    port="$2"
+    listen="$3"
+
+    if [ "$listen" -eq 1 ]; then
+        log_info "Starting UDP server on port $port"
+        if command -v nc >/dev/null 2>&1; then
+            nc -u -l -p "$port"
+        elif command -v socat >/dev/null 2>&1; then
+            socat UDP-LISTEN:"$port",reuseaddr STDIO
+        else
+            log_error "No UDP socket method available"
+            exit 1
+        fi
+    else
+        log_info "Sending UDP to $host:$port"
+        if command -v nc >/dev/null 2>&1; then
+            if [ "$UDP_WAIT" -gt 0 ]; then
+                nc -u -w "$UDP_WAIT" "$host" "$port"
+            else
+                nc -u "$host" "$port"
+            fi
+        elif command -v socat >/dev/null 2>&1; then
+            if [ "$UDP_WAIT" -gt 0 ]; then
+                socat -T "$UDP_WAIT" UDP:"$host:$port" STDIO
+            else
+                socat UDP:"$host:$port" STDIO
+            fi
+        else
+            log_error "No UDP connection method available"
+            exit 1
+        fi
+    fi
+}
+
+create_unix_socket() {
+    socket_path="$1"
+    listen="$2"
+
+    if [ "$listen" -eq 1 ]; then
+        log_info "Starting Unix socket server on $socket_path"
+        rm -f "$socket_path"
+
+        if command -v nc >/dev/null 2>&1 && nc -h 2>&1 | grep -q "-U"; then
+            if [ "$KEEP_OPEN" -eq 1 ]; then
+                nc -l -k -U "$socket_path"
+            else
+                nc -l -U "$socket_path"
+            fi
+        elif command -v socat >/dev/null 2>&1; then
+            if [ "$KEEP_OPEN" -eq 1 ]; then
+                socat UNIX-LISTEN:"$socket_path",fork,reuseaddr STDIO
+            else
+                socat UNIX-LISTEN:"$socket_path",reuseaddr STDIO
+            fi
+        else
+            mkfifo "$socket_path.in" "$socket_path.out" 2>/dev/null || true
+            cat "$socket_path.in" > "$socket_path.out" &
+            cat < "$socket_path.out" &
+            cat > "$socket_path.in"
+        fi
+    else
+        log_info "Connecting to Unix socket $socket_path"
+        if command -v nc >/dev/null 2>&1 && nc -h 2>&1 | grep -q "-U"; then
+            nc -U "$socket_path"
+        elif command -v socat >/dev/null 2>&1; then
+            socat UNIX-CONNECT:"$socket_path" STDIO
+        else
+            if [ -p "$socket_path.in" ] && [ -p "$socket_path.out" ]; then
+                cat < "$socket_path.out" &
+                cat > "$socket_path.in"
+            else
+                log_error "Cannot connect to Unix socket"
+                exit 1
+            fi
+        fi
+    fi
+}
+
+create_ssl_socket() {
+    host="$1"
+    port="$2"
+    listen="$3"
+
+    if [ "$listen" -eq 1 ]; then
+        log_info "Starting SSL server on port $port"
+
+        cert_file="${LATTICE_SSL_CERT:-}"
+        key_file="${LATTICE_SSL_KEY:-}"
+
+        if [ -z "$cert_file" ] || [ -z "$key_file" ]; then
+            log_warn "Generating self-signed certificate"
+            cert_file="/tmp/lattice-cert-$$.pem"
+            key_file="/tmp/lattice-key-$$.pem"
+
+            openssl req -x509 -newkey rsa:2048 -keyout "$key_file" \
+                -out "$cert_file" -days 1 -nodes \
+                -subj "/C=US/ST=State/L=City/O=Lattice/CN=localhost" 2>/dev/null
+
+            trap "rm -f '$cert_file' '$key_file'" EXIT
+        fi
+
+        if command -v socat >/dev/null 2>&1; then
+            if [ "$KEEP_OPEN" -eq 1 ]; then
+                socat OPENSSL-LISTEN:"$port",fork,reuseaddr,cert="$cert_file",key="$key_file",verify=0 STDIO
+            else
+                socat OPENSSL-LISTEN:"$port",reuseaddr,cert="$cert_file",key="$key_file",verify=0 STDIO
+            fi
+        else
+            openssl s_server -accept "$port" -cert "$cert_file" -key "$key_file" -quiet
+        fi
+    else
+        log_info "Connecting via SSL to $host:$port"
+
+        ca_file="${LATTICE_SSL_CA:-}"
+        verify_opts=""
+        if [ -n "$ca_file" ]; then
+            verify_opts="-CAfile $ca_file -verify_return_error"
+        fi
+
+        if command -v socat >/dev/null 2>&1; then
+            socat OPENSSL:"$host:$port",verify=0 STDIO
+        else
+            openssl s_client -connect "$host:$port" -quiet $verify_opts
+        fi
+    fi
+}
+
+execute_with_command() {
+    cmd="$1"
+
+    log_info "Executing command: $cmd"
+
+    input_pipe="/tmp/lattice-input-$$"
+    output_pipe="/tmp/lattice-output-$$"
+
+    mkfifo "$input_pipe" "$output_pipe"
+
+    sh -c "$cmd" < "$input_pipe" > "$output_pipe" 2>&1 &
+    cmd_pid=$!
+
+    cat > "$input_pipe" &
+    cat < "$output_pipe" &
+
+    wait "$cmd_pid"
+    rm -f "$input_pipe" "$output_pipe"
+}
+
+port_scan() {
+    host="$1"
+    port_range="$2"
+
+    log_info "Scanning $host ports: $port_range"
+
+    if echo "$port_range" | grep -q '-'; then
+        start_port=$(echo "$port_range" | cut -d'-' -f1)
+        end_port=$(echo "$port_range" | cut -d'-' -f2)
+    else
+        start_port="$port_range"
+        end_port="$port_range"
+    fi
+
+    for port in $(seq "$start_port" "$end_port"); do
+        if command -v nc >/dev/null 2>&1; then
+            if nc -z -w "$WAIT_TIME" "$host" "$port" 2>/dev/null; then
+                log_success "Port $port is open"
+            fi
+        elif command -v bash >/dev/null 2>&1; then
+            if command -v timeout >/dev/null 2>&1; then
+                if timeout "$WAIT_TIME" bash -c "exec 3<>/dev/tcp/$host/$port" 2>/dev/null; then
+                    log_success "Port $port is open"
+                fi
+            else
+                bash -c "exec 3<>/dev/tcp/$host/$port" 2>/dev/null && log_success "Port $port is open"
+            fi
+        fi
+    done
+}
+
+fifo_mode() {
+    fifo_path="$1"
+
+    log_info "Using FIFO: $fifo_path"
+
+    if [ ! -p "$fifo_path" ]; then
+        mkfifo "$fifo_path"
+        log_info "Created FIFO: $fifo_path"
+    fi
+
+    if [ -n "$INPUT_FILE" ]; then
+        cat "$INPUT_FILE" > "$fifo_path" &
+    else
+        cat > "$fifo_path" &
+    fi
+
+    if [ -n "$OUTPUT_FILE" ]; then
+        cat "$fifo_path" > "$OUTPUT_FILE" &
+    else
+        cat "$fifo_path" &
+    fi
+
+    wait
+}
+
+write_pid_file() {
+    if [ -n "$PID_FILE" ]; then
+        echo $$ > "$PID_FILE"
+        log_info "PID $$ written to $PID_FILE"
+    fi
+}
+
+setup_logging() {
+    if [ -n "$LOG_FILE" ]; then
+        exec 2>> "$LOG_FILE"
+        exec 1>&2
+        log_info "Logging to $LOG_FILE"
+    fi
+}
+
+main() {
+    parse_args "$@"
+    setup_logging
+    write_pid_file
+
+    if [ -n "$LATTICE_NETCAT_DEBUG" ]; then
+        set -x
+    fi
+
+    if [ -n "$FIFO" ]; then
+        fifo_mode "$FIFO"
+        exit 0
+    fi
+
+    if [ "$ZERO_MODE" -eq 1 ] && [ -n "$HOST" ] && [ -n "$PORT" ]; then
+        port_scan "$HOST" "$PORT"
+        exit 0
+    fi
+
+    if [ -n "$EXEC_COMMAND" ]; then
+        if [ "$LISTEN" -eq 1 ]; then
+            log_info "Listening with command execution"
+            if [ "$MODE" = "tcp" ]; then
+                if command -v socat >/dev/null 2>&1; then
+                    if [ "$KEEP_OPEN" -eq 1 ]; then
+                        socat TCP-LISTEN:"$PORT",fork,reuseaddr EXEC:"$EXEC_COMMAND"
+                    else
+                        socat TCP-LISTEN:"$PORT",reuseaddr EXEC:"$EXEC_COMMAND"
+                    fi
+                else
+                    log_error "Command execution requires socat"
+                    exit 1
+                fi
+            else
+                log_error "Command execution only supported for TCP"
+                exit 1
+            fi
+        else
+            execute_with_command "$EXEC_COMMAND"
+        fi
+        exit 0
+    fi
+
+    if [ "$LISTEN" -eq 1 ]; then
+        case "$MODE" in
+            tcp)
+                create_tcp_socket "$HOST" "$PORT" 1
+                ;;
+            udp)
+                create_udp_socket "$HOST" "$PORT" 1
+                ;;
+            unix)
+                create_unix_socket "$UNIX_SOCKET" 1
+                ;;
+            ssl)
+                create_ssl_socket "$HOST" "$PORT" 1
+                ;;
+        esac
+    else
+        case "$MODE" in
+            tcp)
+                create_tcp_socket "$HOST" "$PORT" 0
+                ;;
+            udp)
+                create_udp_socket "$HOST" "$PORT" 0
+                ;;
+            unix)
+                create_unix_socket "$UNIX_SOCKET" 0
+                ;;
+            ssl)
+                create_ssl_socket "$HOST" "$PORT" 0
+                ;;
+        esac
+    fi
+}
+
+main "$@"

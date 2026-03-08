@@ -1,0 +1,20 @@
+{
+  "updated_at": 1772865877,
+  "resources": {
+    "port:input": {
+      "status": "healthy",
+      "last_error": "",
+      "last_checked": 1772865877
+    },
+    "port:output": {
+      "status": "healthy",
+      "last_error": "",
+      "last_checked": 1772865877
+    },
+    "proc:echoer": {
+      "status": "healthy",
+      "last_error": "",
+      "last_checked": 1772865877
+    }
+  }
+}

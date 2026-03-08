@@ -1,0 +1,5 @@
+#!/usr/bin/env sh
+set -eu
+
+ROOT="$(cd "$(dirname "$0")" && pwd)"
+exec python3 "$ROOT/runtime/seam_transport.py" "$@"

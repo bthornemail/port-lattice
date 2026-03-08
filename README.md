@@ -19,6 +19,11 @@ Design constraints:
 ./runtime/test-lattice.sh
 ```
 
+## Contributor docs
+
+- `docs/actual-functionality.md` explains implemented behavior across `runtime/`, `netcat/`, and trace/health flows.
+- `docs/logic-ladder-and-invariants.md` maps the logic ladder and seven-invariant metastructure to current code.
+
 ## Seam envelope transport
 
 ```sh

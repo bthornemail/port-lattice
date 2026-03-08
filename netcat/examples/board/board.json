@@ -1,0 +1,7 @@
+{
+  "node_id": "local",
+  "socket_dir": "state/sockets",
+  "peers": [],
+  "ports": [],
+  "procs": []
+}

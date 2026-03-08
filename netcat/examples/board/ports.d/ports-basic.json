@@ -1,0 +1,12 @@
+[
+  {
+    "name": "input",
+    "type": "fifo",
+    "path": "examples/board/state/input.fifo"
+  },
+  {
+    "name": "output",
+    "type": "fifo",
+    "path": "examples/board/state/output.fifo"
+  }
+]

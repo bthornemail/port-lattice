@@ -1,0 +1,50 @@
+[
+  {
+    "name": "tcp_server",
+    "command": "./lattice-netcat -l -p 9997 -k -e \"/bin/cat\"",
+    "waits": ["tcp_echo"],
+    "fires": ["tcp_echo"]
+  },
+  {
+    "name": "udp_server",
+    "command": "./lattice-netcat -u -l -p 9996",
+    "waits": ["udp_echo"],
+    "fires": ["udp_echo"]
+  },
+  {
+    "name": "udp_echo_server",
+    "command": "python3 ./examples/board-netcat/udp_echo.py",
+    "waits": ["udp_echo_rt"],
+    "fires": ["udp_echo_rt"]
+  },
+  {
+    "name": "ssl_server",
+    "command": "./lattice-netcat -S -l -p 9995 -k",
+    "waits": ["ssl_echo"],
+    "fires": ["ssl_echo"]
+  },
+  {
+    "name": "unix_server",
+    "command": "./lattice-netcat -U -l -L /tmp/lattice-netcat-demo.sock -k",
+    "waits": ["unix_echo"],
+    "fires": ["unix_echo"]
+  },
+  {
+    "name": "tcp_client",
+    "command": "sh -c 'while true; do printf \"ping tcp\\n\" | ./lattice-netcat 127.0.0.1 9997 > /tmp/lattice-tcp.out; sleep 2; done'",
+    "waits": ["tcp_echo"],
+    "fires": ["tcp_echo"]
+  },
+  {
+    "name": "udp_client",
+    "command": "./examples/board-netcat/udp_client.sh",
+    "waits": ["udp_echo_rt"],
+    "fires": ["udp_echo_rt"]
+  },
+  {
+    "name": "udp_validate",
+    "command": "python3 ./examples/board-netcat/udp_validate.py",
+    "waits": ["udp_echo_rt"],
+    "fires": ["udp_echo_rt"]
+  }
+]

@@ -1,0 +1,59 @@
+{
+  "node_id": "netcat-demo",
+  "socket_dir": "state/sockets",
+  "ports": [
+    {
+      "name": "tcp-echo",
+      "direction": "inout"
+    },
+    {
+      "name": "udp-echo",
+      "direction": "inout"
+    },
+    {
+      "name": "ssl-echo",
+      "direction": "inout"
+    }
+  ],
+  "transports": [
+    {
+      "name": "tcp-listener",
+      "kind": "netcat",
+      "attach": "tcp-echo",
+      "spec": {
+        "protocol": "tcp",
+        "mode": "listen",
+        "port": 9999,
+        "keep_open": true,
+        "exec": "/bin/cat"
+      }
+    },
+    {
+      "name": "udp-listener",
+      "kind": "netcat",
+      "attach": "udp-echo",
+      "spec": {
+        "protocol": "udp",
+        "mode": "listen",
+        "port": 9998
+      }
+    },
+    {
+      "name": "ssl-listener",
+      "kind": "netcat",
+      "attach": "ssl-echo",
+      "spec": {
+        "protocol": "ssl",
+        "mode": "listen",
+        "port": 9997,
+        "keep_open": true,
+        "exec": "/bin/cat"
+      }
+    }
+  ],
+  "procs": [],
+  "health": {
+    "tick_seconds": 2,
+    "restart_delay": 1
+  }
+}

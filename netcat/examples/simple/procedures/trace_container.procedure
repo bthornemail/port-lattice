@@ -1,0 +1,5 @@
+procedure trace_container
+manifest: default
+polynomial:
+  +1*scope
+  +2*order

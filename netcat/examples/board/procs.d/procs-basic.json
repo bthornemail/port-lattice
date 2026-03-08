@@ -1,0 +1,8 @@
+[
+  {
+    "name": "echoer",
+    "command": "cat $LATTICE_PORT_INPUT > $LATTICE_PORT_OUTPUT",
+    "waits": ["input"],
+    "fires": ["output"]
+  }
+]

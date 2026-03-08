@@ -1,0 +1,70 @@
+{
+  "updated_at": 1769285926,
+  "resources": {
+    "port:tcp_echo": {
+      "status": "healthy",
+      "last_error": "",
+      "last_checked": 1769285924
+    },
+    "port:udp_echo": {
+      "status": "healthy",
+      "last_error": "",
+      "last_checked": 1769285924
+    },
+    "port:udp_echo_rt": {
+      "status": "healthy",
+      "last_error": "",
+      "last_checked": 1769285924
+    },
+    "port:ssl_echo": {
+      "status": "unhealthy",
+      "last_error": "[SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: self-signed certificate (_ssl.c:1000)",
+      "last_checked": 1769285924
+    },
+    "port:unix_echo": {
+      "status": "healthy",
+      "last_error": "",
+      "last_checked": 1769285925
+    },
+    "proc:tcp_server": {
+      "status": "healthy",
+      "last_error": "",
+      "last_checked": 1769285925
+    },
+    "proc:udp_server": {
+      "status": "healthy",
+      "last_error": "",
+      "last_checked": 1769285925
+    },
+    "proc:udp_echo_server": {
+      "status": "healthy",
+      "last_error": "",
+      "last_checked": 1769285925
+    },
+    "proc:ssl_server": {
+      "status": "healthy",
+      "last_error": "",
+      "last_checked": 1769285925
+    },
+    "proc:unix_server": {
+      "status": "healthy",
+      "last_error": "",
+      "last_checked": 1769285925
+    },
+    "proc:tcp_client": {
+      "status": "healthy",
+      "last_error": "",
+      "last_checked": 1769285925
+    },
+    "proc:udp_client": {
+      "status": "healthy",
+      "last_error": "",
+      "last_checked": 1769285925
+    },
+    "proc:udp_validate": {
+      "status": "unhealthy",
+      "last_error": "process not running",
+      "last_checked": 1769285925
+    }
+  }
+}

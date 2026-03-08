@@ -1,0 +1,11 @@
+{
+  "name": "remote-api-connect",
+  "kind": "netcat",
+  "attach": "remote-api",
+  "spec": {
+    "protocol": "tcp",
+    "mode": "connect",
+    "host": "example.com",
+    "port": 9090
+  }
+}

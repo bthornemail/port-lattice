@@ -1,0 +1,28 @@
+{
+  "node_id": "local",
+  "socket_dir": "state/sockets",
+  "ports": [
+    {
+      "name": "input",
+      "direction": "in"
+    },
+    {
+      "name": "output",
+      "direction": "out"
+    }
+  ],
+  "transports": [],
+  "procs": [
+    {
+      "name": "echo-worker",
+      "command": "cat $LATTICE_PORT_INPUT > $LATTICE_PORT_OUTPUT",
+      "waits": ["input"],
+      "fires": ["output"],
+      "env": {}
+    }
+  ],
+  "health": {
+    "tick_seconds": 2,
+    "restart_delay": 1
+  }
+}

@@ -1,0 +1,43 @@
+#!/usr/bin/env python3
+"""Self-defining, self-healing lattice runtime."""
+
+import argparse
+import os
+import sys
+
+# Add parent directory to path so we can import runtime package
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+from runtime.board import read_board, validate, run  # noqa: E402
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description="Lattice Runtime")
+    subparsers = parser.add_subparsers(dest="command", help="Command")
+
+    run_parser = subparsers.add_parser("run", help="Run lattice from board")
+    run_parser.add_argument("board", help="Board directory")
+    run_parser.add_argument("--once", action="store_true", help="Run one tick")
+
+    validate_parser = subparsers.add_parser("validate", help="Validate board")
+    validate_parser.add_argument("board", help="Board directory")
+
+    args = parser.parse_args()
+
+    if args.command == "run":
+        run(os.path.abspath(args.board), once=args.once)
+    elif args.command == "validate":
+        board = read_board(os.path.abspath(args.board))
+        errors = validate(board)
+        if errors:
+            for err in errors:
+                print(f"Validation error: {err}")
+            sys.exit(1)
+        print("Board is valid")
+    else:
+        parser.print_help()
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()

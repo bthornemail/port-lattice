@@ -1,0 +1,21 @@
+{
+  "updated_at": 1769295934.0317283,
+  "resources": {
+    "tcp-listen": "healthy",
+    "udp-listen": "healthy",
+    "ssl-listen": "healthy",
+    "tcp_in": "healthy",
+    "udp_in": "healthy",
+    "ssl_in": "healthy",
+    "tcp-sink": "healthy",
+    "udp-sink": "healthy",
+    "ssl-sink": "healthy"
+  },
+  "details": {
+    "ssl-listen": {
+      "mode": "ephemeral",
+      "window_sec": 10.0,
+      "last_accept_age_ms": 0
+    }
+  }
+}
